@@ -8,7 +8,7 @@ from geopy.geocoders import Nominatim
 from geopy import distance
 from geopy.extra.rate_limiter import RateLimiter
 from datetime import datetime
-from pprint import pprint
+from dateutil import parser
 from geopy.geocoders import GoogleV3
 
 from config import API_KEY
@@ -19,11 +19,11 @@ URL = ["https://www.vaccinespotter.org/api/v0/states/", ".json"]
 # SEARCH_ADDRESS = "480 Linden Ave, Doylestown, PA 18901"
 SEARCH_ADDRESS = "2849 Street Rd, Doylestown, PA 18902"
 STATE = "PA"
-MAX_DISTANCE = 100
+MAX_DISTANCE = 15
 TIME_BETWEEN_SCANS = 60
 
 # Geolocator calls that don't need to be called each loop
-geolocator = Nominatim(user_agent="junk@scottlarsen.com")
+geolocator = Nominatim(user_agent="scott@scottlarsen.com")
 geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
 gmaps = googlemaps.Client(key=API_KEY)
 
@@ -45,10 +45,15 @@ def convert_text_address_to_gps(text_address):
     try:
         sleep(1)
         text_address_geocoded = geocode(text_address)
-        return (text_address_geocoded.latitude, text_address_geocoded.longitude)
+        text_address_gps = (
+            text_address_geocoded.latitude,
+            text_address_geocoded.longitude,
+        )
+        print("Successfully geocoded with Geopy")
+        return text_address_gps
     except AttributeError as e:
-        print("\nQuerying Google\n")
-        print(f"{text_address = }")
+        # print(f"Error: {e} looking up {text_address}")
+        print(f"\nQuerying Google for - {location_properties['id']} - {text_address}")
         clinic_address = gmaps.geocode(text_address)
         return (
             clinic_address[0]["geometry"]["location"]["lat"],
@@ -56,8 +61,8 @@ def convert_text_address_to_gps(text_address):
         )
 
 
-def find_distance(SEARCH_ADDRESS, clinic_gps):
-    return distance.distance(SEARCH_ADDRESS, clinic_gps).miles
+def find_distance(SEARCH_ADDRESS_GPS, clinic_gps):
+    return distance.distance(SEARCH_ADDRESS_GPS, clinic_gps).miles
 
 
 # def find_distance(SEARCH_ADDRESS, clinic_location):
@@ -128,18 +133,26 @@ def find_distance(SEARCH_ADDRESS, clinic_gps):
 # errors = []
 def main():
     global SEARCH_ADDRESS
+    available_last_time = []
     geolocations = open_json("geolocations.json")
     if isinstance(SEARCH_ADDRESS, str):
-        SEARCH_ADDRESS = convert_text_address_to_gps(SEARCH_ADDRESS)
+        if SEARCH_ADDRESS in geolocations:
+            SEARCH_ADDRESS_GPS = geolocations[SEARCH_ADDRESS]
+        else:
+            SEARCH_ADDRESS_GPS = convert_text_address_to_gps(SEARCH_ADDRESS)
+            geolocations[SEARCH_ADDRESS] = SEARCH_ADDRESS_GPS
+
+        # SEARCH_ADDRESS = convert_text_address_to_gps(SEARCH_ADDRESS)
     print(f"{SEARCH_ADDRESS = }")
+    print(f"{SEARCH_ADDRESS_GPS = }")
     while True:
         response = requests.get(URL[0] + STATE + URL[1])
-        datetime_ = datetime.utcnow().replace(tzinfo=UTC)
-        print(datetime_)
+        datetime_UTC = datetime.utcnow().replace(tzinfo=UTC)
+        print(f"\n{str(datetime.now())}")
         json_ = response.json()
         locations = json_["features"]
-        time_at_start = datetime.now()
-        print(f"{time_at_start = }")
+        # time_at_start = datetime.now()
+        # print(f"\n{time_at_start = }")
         # for key in geolocations.keys():
         #     print(f"{key = }\n{type(key)}")
         # print(f"{geolocations = }")
@@ -162,17 +175,25 @@ def main():
                 # except:
                 #     pass
                 if str(location_properties["id"]) in geolocations:
-                    # print("Looking for GPS address in dictionary")
+                    # print(
+                    #     f"Looking for GPS address in dictionary with key {location_properties['id']}"
+                    # )
                     gps_address = geolocations[str(location_properties["id"])]
-                    # print("Found GPS coordinates in the dictionary")
+                    # print(f"Found GPS coordinates in the dictionary")
                 else:
-                    print(f"GPS address dictionary lookup failed on {gps_address}")
+                    # print(
+                    #     f"GPS address dictionary lookup failed on {location_properties['id']}"
+                    # )
                     gps_address = convert_text_address_to_gps(address)
                     geolocations[location_properties["id"]] = gps_address
                     # print(find_distance(address))
                     # print(type(find_distance(address)))
-                distance_ = int(find_distance(SEARCH_ADDRESS, gps_address))
-                if distance_ < MAX_DISTANCE:
+                distance_ = int(find_distance(SEARCH_ADDRESS_GPS, gps_address))
+                if (
+                    distance_ < MAX_DISTANCE
+                    and location_properties["id"] not in available_last_time
+                ):
+                    available_last_time.append(location_properties["id"])
                     # pprint(location_properties)
                     # if location_properties["address"] is None or location_properties["address"] == "None":
 
@@ -183,8 +204,7 @@ def main():
                         {location_properties["city"]}, PA {location_properties["postal_code"]}
                         {distance_} miles away
                         {location_properties["url"]}
-                        {location_properties["appointments_last_fetched"]}
-                        {location_properties["appointments_last_modified"]}
+                        Updated {int((datetime_UTC - parser.parse(location_properties["appointments_last_modified"])).total_seconds()//60)} minutes ago
                         """
                     )
                 # except AttributeError as e:
