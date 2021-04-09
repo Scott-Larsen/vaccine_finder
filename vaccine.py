@@ -1,6 +1,5 @@
-import json
+import pickle
 import requests
-import webbrowser
 import googlemaps
 from time import sleep
 from pytz import UTC
@@ -28,19 +27,6 @@ geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
 gmaps = googlemaps.Client(key=API_KEY)
 
 
-def open_json(file_):
-    """Open json cache of address conversions to GPS lat/ long"""
-    with open(file_) as f:
-        return json.load(f)
-    # return geolocations
-
-
-def write_json(dict_, filename_):
-    """Save json cache of address conversions to GPS lat/ long"""
-    with open(filename_, "w") as json_file:
-        json.dump(dict_, json_file)
-
-
 def convert_text_address_to_gps(text_address):
     try:
         sleep(1)
@@ -52,8 +38,7 @@ def convert_text_address_to_gps(text_address):
         print("Successfully geocoded with Geopy")
         return text_address_gps
     except AttributeError as e:
-        # print(f"Error: {e} looking up {text_address}")
-        print(f"\nQuerying Google for - {location_properties['id']} - {text_address}")
+        print(f"\nQuerying Google for {text_address}")
         clinic_address = gmaps.geocode(text_address)
         return (
             clinic_address[0]["geometry"]["location"]["lat"],
@@ -65,76 +50,12 @@ def find_distance(SEARCH_ADDRESS_GPS, clinic_gps):
     return distance.distance(SEARCH_ADDRESS_GPS, clinic_gps).miles
 
 
-# def find_distance(SEARCH_ADDRESS, clinic_location):
-#     try:
-#         clinic_address = geolocator.geocode(clinic_location)
-#         clinic_gps = (clinic_address.raw["lat"], clinic_address.raw["lon"])
-#     except AttributeError as e:
-#         clinic_address = gmaps.geocode(clinic_location)
-#         clinic_gps = (
-#             clinic_address[0]["geometry"]["location"]["lat"],
-#             clinic_address[0]["geometry"]["location"]["lng"],
-#         )
-
-#     return distance(SEARCH_ADDRESS, clinic_gps).miles
-
-# def find_distance(SEARCH_ADDRESS, clinic_gps):
-#     return distance(SEARCH_ADDRESS, clinic_gps).miles
-
-# # def find_distance(SEARCH_ADDRESS, clinic_location):
-# #     try:
-# #         clinic_address = geolocator.geocode(clinic_location)
-# #         clinic_gps = (clinic_address.raw["lat"], clinic_address.raw["lon"])
-# #     except AttributeError as e:
-# #         clinic_address = gmaps.geocode(clinic_location)
-# #         clinic_gps = (
-# #             clinic_address[0]["geometry"]["location"]["lat"],
-# #             clinic_address[0]["geometry"]["location"]["lng"],
-# #         )
-
-# #     return distance(SEARCH_ADDRESS, clinic_gps).miles
-
-#     # clinic_address = geolocator.geocode((clinic_location))
-#     # clinic_gps = (clinic_address.raw["lat"], clinic_address.raw["lon"])
-#     # return distance(SEARCH_ADDRESS, clinic_gps).miles
-
-
-# addy = "4960 William Flynn Hwy Ste 10 Allison Park, PA 15101"
-# addy = "5990 University Blvd Ste30 Moon Township, PA 15108"
-# print(find_distance(addy))
-# geolocator = GoogleV3()
-# gmaps = googlemaps.Client(key=API_KEY)
-# clinic_address = gmaps.geocode(addy)
-# clinic_gps = (
-#     clinic_address[0]["geometry"]["location"]["lat"],
-#     clinic_address[0]["geometry"]["location"]["lng"],
-# )
-# print(clinic_gps)
-
-# clinic_location = "916, State Street, Erie, Pennsylvania, 16501"
-# # clinic_location = "2849 Street Rd, Doylestown, PA 18902"
-# clinic_address = geolocator.geocode((clinic_location))
-# clinic_gps = (clinic_address.longitude, clinic_address.latitude)
-
-# pprint(clinic_address.raw["lat"])
-# print(find_distance(clinic_location))
-
-
-# errors = []
-
-
-# def write_json(filename):
-#     with open("locations.json", "w") as locations_json:
-#         locations_json.write(json.dumps(filename))
-
-
-# pprint(locations)
-# print(locations[0]["properties"])
-# errors = []
 def main():
     global SEARCH_ADDRESS
     available_last_time = []
-    geolocations = open_json("geolocations.json")
+    # geolocations = open_json(STATE + "_geolocations.json")
+    geolocations = pickle.load(open(STATE + "_geolocations.p", "rb"))
+    print("Pickle loaded")
     if isinstance(SEARCH_ADDRESS, str):
         if SEARCH_ADDRESS in geolocations:
             SEARCH_ADDRESS_GPS = geolocations[SEARCH_ADDRESS]
@@ -142,7 +63,6 @@ def main():
             SEARCH_ADDRESS_GPS = convert_text_address_to_gps(SEARCH_ADDRESS)
             geolocations[SEARCH_ADDRESS] = SEARCH_ADDRESS_GPS
 
-        # SEARCH_ADDRESS = convert_text_address_to_gps(SEARCH_ADDRESS)
     print(f"{SEARCH_ADDRESS = }")
     print(f"{SEARCH_ADDRESS_GPS = }")
     while True:
@@ -151,11 +71,6 @@ def main():
         print(f"\n{str(datetime.now())}")
         json_ = response.json()
         locations = json_["features"]
-        # time_at_start = datetime.now()
-        # print(f"\n{time_at_start = }")
-        # for key in geolocations.keys():
-        #     print(f"{key = }\n{type(key)}")
-        # print(f"{geolocations = }")
         for location in locations:
             location_properties = location["properties"]
             if location_properties["appointments_available"]:
@@ -164,38 +79,19 @@ def main():
                     address = (
                         f"{location_properties['city']}, {location_properties['state']}"
                     )
-                    # print(address, "\n", location_properties, "\n\n")
                 else:
                     address = f"{street_address} {location_properties['city']}, {location_properties['state']} {location_properties['postal_code']}"
-                # try:
-                #     print(f"{location_properties['id'] = }")
-                #     print(f"{type(location_properties['id']) = }")
-                #     # print(f"{geolocations[location_properties['id']] = }")
-                #     print(f"{geolocations[str(location_properties['id'])] = }")
-                # except:
-                #     pass
-                if str(location_properties["id"]) in geolocations:
-                    # print(
-                    #     f"Looking for GPS address in dictionary with key {location_properties['id']}"
-                    # )
-                    gps_address = geolocations[str(location_properties["id"])]
-                    # print(f"Found GPS coordinates in the dictionary")
+                if location_properties["id"] in geolocations:
+                    gps_address = geolocations[location_properties["id"]]
                 else:
-                    # print(
-                    #     f"GPS address dictionary lookup failed on {location_properties['id']}"
-                    # )
                     gps_address = convert_text_address_to_gps(address)
                     geolocations[location_properties["id"]] = gps_address
-                    # print(find_distance(address))
-                    # print(type(find_distance(address)))
                 distance_ = int(find_distance(SEARCH_ADDRESS_GPS, gps_address))
                 if (
                     distance_ < MAX_DISTANCE
                     and location_properties["id"] not in available_last_time
                 ):
                     available_last_time.append(location_properties["id"])
-                    # pprint(location_properties)
-                    # if location_properties["address"] is None or location_properties["address"] == "None":
 
                     print(
                         f"""
@@ -207,41 +103,10 @@ def main():
                         Updated {int((datetime_UTC - parser.parse(location_properties["appointments_last_modified"])).total_seconds()//60)} minutes ago
                         """
                     )
-                # except AttributeError as e:
-                #     # errors.append(
-                #     #     [
-                #     #         f"{location_properties['address']} {location_properties['city']}, PA {location_properties['postal_code']}",
-                #     #         location_properties,
-                #     #     ]
-                #     # )
-                #     print("Error on:", e)
-                #     print(address)
-                #     print(location_properties, "\n")
-        write_json(geolocations, "geolocations.json")
+        pickle.dump(geolocations, open(STATE + "_geolocations.p", "wb"))
+        print("Pickle updated")
         sleep(TIME_BETWEEN_SCANS)
-    #         # pprint(location_properties["address"])
-    # #         # print("\n")
-    # #         # pprint(location_properties)
-    # #         # print("\n\n")
-    # #         # else:
-    # #     print(f"{location_properties['address']}", location_properties["appointments_available"], "\n")
-    # # # json_[:10]
-
-    # # # pprint(json_)
-    # print("Errors")
-    # for error in errors:
-    #     print(error[0], "\n", error[1], "\n")
 
 
 if __name__ == "__main__":
     main()
-
-# errors.append(location_properties)
-
-# write_json(errors)
-#         if (
-#             None
-#             in [street_address, location_properties["city"], location_properties["postal_code"]]
-#             # and location_properties["address"]
-#         ):
-#             # print(["\n", location_properties["address"], location_properties["city"], location_properties["postal_code"], "\n"])
