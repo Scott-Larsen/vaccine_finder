@@ -1,3 +1,4 @@
+import os
 import pickle
 import requests
 import googlemaps
@@ -8,9 +9,6 @@ from geopy import distance
 from geopy.extra.rate_limiter import RateLimiter
 from datetime import datetime
 from dateutil import parser
-
-# from geopy.geocoders import GoogleV3
-
 from config import API_KEY
 
 
@@ -33,7 +31,7 @@ gmaps = googlemaps.Client(key=API_KEY)
 def convert_text_address_to_gps(text_address):
     """Converts plain-text street address to (lat, long) tuple."""
 
-    try:  # Try's the free geopy Nominatum geocoder
+    try:  # Try's the free geopy Nominatum geocoder.
         sleep(1)
         text_address_geocoded = geocode(text_address)
         text_address_gps = (
@@ -66,10 +64,17 @@ def query_vaccinespotter():
 
 def main():
 
-    geolocations = pickle.load(open(STATE + "_geolocations.p", "rb"))
+    # Load or create the pickle file to save the dictionary of geolocated addresses.
+    pickle_filename = STATE + "_geolocations.p"
+    if os.path.isfile(pickle_filename):
+        geolocations = pickle.load(open(pickle_filename, "rb"))
+    else:
+        geolocations = {}
 
-    global SEARCH_ADDRESS
     available_last_time = []
+
+    # Resolve SEARCH_ADDRESS to GPS tuple SEARCH_ADDRESS_GPS
+    global SEARCH_ADDRESS
     if isinstance(SEARCH_ADDRESS, str):
         if SEARCH_ADDRESS in geolocations:
             SEARCH_ADDRESS_GPS = geolocations[SEARCH_ADDRESS]
@@ -83,6 +88,7 @@ def main():
 
         datetime_UTC = datetime.utcnow().replace(tzinfo=UTC)
         print(f"\nRunning at {str(datetime.now())}")
+
         locations = query_vaccinespotter()
 
         # Check each clinic location from the API
@@ -136,7 +142,7 @@ def main():
                     )
 
         # Cache street address -> GPS translations to pickle file.
-        pickle.dump(geolocations, open(STATE + "_geolocations.p", "wb"))
+        pickle.dump(geolocations, open(pickle_filename, "wb"))
 
         sleep(SECONDS_BETWEEN_SCANS)
 
