@@ -10,7 +10,7 @@ from geopy import distance
 from geopy.extra.rate_limiter import RateLimiter
 from datetime import datetime
 from dateutil import parser
-from config import API_KEY
+from config import GOOGLE_MAPS_API_KEY
 
 
 # A street address or latitude, longitude around which to search.
@@ -30,7 +30,7 @@ logging.basicConfig(
 # Geolocator settings that don't need to be called each loop
 geolocator = Nominatim(user_agent="scott@scottlarsen.com")
 geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
-gmaps = googlemaps.Client(key=API_KEY)
+gmaps = googlemaps.Client(key=GOOGLE_MAPS_API_KEY)
 
 
 def convert_text_address_to_gps(text_address, geolocations):
@@ -44,10 +44,10 @@ def convert_text_address_to_gps(text_address, geolocations):
                 text_address_geocoded.latitude,
                 text_address_geocoded.longitude,
             )
-            logging.info(f"\nGeopy: {text_address}")
+            logging.info(f"Geopy: {text_address}")
 
         except AttributeError as e:  # Resorts to the Google Maps geocoder on failure
-            logging.info(f"\n Google: {text_address}")
+            logging.info(f"Google: {text_address}")
             clinic_address = gmaps.geocode(text_address)
             geolocations[text_address] = (
                 clinic_address[0]["geometry"]["location"]["lat"],
@@ -108,8 +108,12 @@ def main():
                         f"{location_properties['city']}, {location_properties['state']}"
                     )
                 else:
-                    address = f"{street_address} {location_properties['city']}, \
-                    {location_properties['state'].strip()} {location_properties['postal_code']}"
+                    address = (
+                        f"{street_address} "
+                        + f"{location_properties['city'].strip()}, "
+                        + f"{location_properties['state'].strip()} "
+                        + f"{location_properties['postal_code']}"
+                    )
 
                 # If we've already geolocated the address, pull GPS coords from pickle.
                 gps_address = convert_text_address_to_gps(address, geolocations)
@@ -136,14 +140,14 @@ def main():
                             f"{location_properties['name']}\n"
                             + f"{location_properties['address']}\n"
                             + f"{location_properties['city']}, {STATE}"
-                            + f"{(location_properties['postal_code']).strip()}"
+                            + f"{(location_properties['postal_code']).strip()}\n"
                             + f"{distance_} miles away\n"
                             + f"{location_properties['url']}\n"
                             + f"Updated {time_diff_in_minutes} minutes ago\n",
                         ]
                     )
 
-        available_now.sort(reverse=True)
+        available_now.sort()
         for site in available_now:
             print(site[1])
 
