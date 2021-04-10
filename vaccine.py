@@ -1,5 +1,6 @@
 import os
 import logging
+import webbrowser
 import pickle
 import requests
 import googlemaps
@@ -14,6 +15,7 @@ from config import GOOGLE_MAPS_API_KEY
 
 
 # A street address or latitude, longitude around which to search.
+# If you input a lat/ long tuple you don't need Google Maps API keys
 SEARCH_ADDRESS = "2849 Street Rd, Doylestown, PA 18902"
 STATE = "PA"
 
@@ -99,29 +101,15 @@ def main():
         # Check each clinic location from the API
         for location in locations:
             location_properties = location["properties"]
+            location_properties["gps"] = location["geometry"]["coordinates"][::-1]
             if location_properties["appointments_available"]:
-                street_address = location_properties["address"]
-
-                # If the location doesn't have a street address, swap in City & State.
-                if not isinstance(street_address, str):
-                    address = (
-                        f"{location_properties['city']}, {location_properties['state']}"
-                    )
-                else:
-                    address = (
-                        f"{street_address} "
-                        + f"{location_properties['city'].strip()}, "
-                        + f"{location_properties['state'].strip()} "
-                        + f"{location_properties['postal_code']}"
-                    )
-
-                # If we've already geolocated the address, pull GPS coords from pickle.
-                gps_address = convert_text_address_to_gps(address, geolocations)
 
                 # Check the distance between search point and clinic GPS.
                 # Add to available_last_time so we don't notify multiple times
                 # for same location.
-                distance_ = int(find_distance(SEARCH_ADDRESS_GPS, gps_address))
+                distance_ = int(
+                    find_distance(SEARCH_ADDRESS_GPS, location_properties["gps"])
+                )
                 if (
                     distance_ < MAX_DISTANCE
                     and location_properties["id"] not in available_last_time
@@ -134,22 +122,33 @@ def main():
                         // 60
                     )
 
+                    vaccine_types = [
+                        key.capitalize()
+                        for key in location_properties[
+                            "appointment_vaccine_types"
+                        ].keys()
+                    ]
+
                     available_now.append(
                         [
                             distance_,
                             f"{location_properties['name']}\n"
                             + f"{location_properties['address']}\n"
-                            + f"{location_properties['city']}, {STATE}"
+                            + f"{location_properties['city']}, {STATE} "
                             + f"{(location_properties['postal_code']).strip()}\n"
                             + f"{distance_} miles away\n"
+                            + f"Vaccines available: {', '.join(vaccine_types)}\n"
                             + f"{location_properties['url']}\n"
                             + f"Updated {time_diff_in_minutes} minutes ago\n",
+                            location_properties["url"],
                         ]
                     )
 
-        available_now.sort()
-        for site in available_now:
-            print(site[1])
+        if len(available_now) > 0:
+            available_now.sort()
+            for site in available_now:
+                print(site[1])
+            webbrowser.open(available_now[0][2])
 
         # Cache street address -> GPS translations to pickle file.
         pickle.dump(geolocations, open(pickle_filename, "wb"))
