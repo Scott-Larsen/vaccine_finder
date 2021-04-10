@@ -15,7 +15,7 @@ from config import GOOGLE_MAPS_API_KEY
 
 
 # A street address or latitude, longitude around which to search.
-# If you input a lat/ long tuple you don't need Google Maps API keys
+# If you input a lat/ long tuple you won't need Google Maps API keys
 SEARCH_ADDRESS = "2849 Street Rd, Doylestown, PA 18902"
 STATE = "PA"
 
@@ -30,7 +30,7 @@ logging.basicConfig(
 )
 
 # Geolocator settings that don't need to be called each loop
-geolocator = Nominatim(user_agent="scott@scottlarsen.com")
+geolocator = Nominatim(user_agent="Covid Vaccine Finder")
 geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
 gmaps = googlemaps.Client(key=GOOGLE_MAPS_API_KEY)
 
@@ -144,6 +144,7 @@ def main():
                         ]
                     )
 
+        # Sort the available locations by distance and open web browser to closest
         if len(available_now) > 0:
             available_now.sort()
             for site in available_now:
