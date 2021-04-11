@@ -39,7 +39,7 @@ def convert_text_address_to_gps(text_address, geolocations):
     """Converts plain-text street address to (lat, long) tuple."""
 
     if text_address not in geolocations:
-        try:  # Try's the free geopy Nominatum geocoder.
+        try:  # Tries the free geopy Nominatum geocoder.
             sleep(1)
             text_address_geocoded = geocode(text_address)
             geolocations[text_address] = (

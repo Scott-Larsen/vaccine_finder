@@ -1,6 +1,6 @@
 config.py
+test.py
+
 *.json
 *.log
-
-google.py
-test.py
+*.py
